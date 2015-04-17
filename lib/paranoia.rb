@@ -63,6 +63,7 @@ module Paranoia
       run_callbacks(:restore) do
         update_column paranoia_column, nil
         restore_associated_records if opts[:recursive]
+        restore_counter_caches
       end
     end
   end
@@ -75,6 +76,16 @@ module Paranoia
   alias :deleted? :destroyed?
 
   private
+
+  def restore_counter_caches
+    cached_associations = self.class.reflect_on_all_associations.select do |association|
+      association.options[:counter_cache] == true
+    end
+
+    cached_associations.each do |association|
+      association.klass.send(:reset_counters, self.send(association.foreign_key.to_sym), self.class.table_name.to_sym)
+    end
+  end
 
   # touch paranoia column.
   # insert time to paranoia column.

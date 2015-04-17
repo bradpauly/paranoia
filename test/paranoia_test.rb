@@ -21,6 +21,8 @@ ActiveRecord::Base.connection.execute 'CREATE TABLE employees (id INTEGER NOT NU
 ActiveRecord::Base.connection.execute 'CREATE TABLE jobs (id INTEGER NOT NULL PRIMARY KEY, employer_id INTEGER NOT NULL, employee_id INTEGER NOT NULL, deleted_at DATETIME)'
 ActiveRecord::Base.connection.execute 'CREATE TABLE custom_column_models (id INTEGER NOT NULL PRIMARY KEY, destroyed_at DATETIME)'
 ActiveRecord::Base.connection.execute 'CREATE TABLE non_paranoid_models (id INTEGER NOT NULL PRIMARY KEY, parent_model_id INTEGER)'
+ActiveRecord::Base.connection.execute 'CREATE TABLE posts (id INTEGER NOT NULL PRIMARY KEY, deleted_at DATETIME, comments_count INTEGER)'
+ActiveRecord::Base.connection.execute 'CREATE TABLE comments (id INTEGER NOT NULL PRIMARY KEY, deleted_at DATETIME, post_id INTEGER NOT NULL)'
 
 class ParanoiaTest < Test::Unit::TestCase
   def test_plain_model_class_is_not_paranoid
@@ -435,6 +437,18 @@ class ParanoiaTest < Test::Unit::TestCase
     # essentially, we're just ensuring that this doesn't crash
   end
 
+  def test_restore_with_counter_cache
+    p = Post.create
+    c = p.comments.create
+    assert_equal 1, p.reload.comments_count
+
+    c.destroy
+    assert_equal 0, p.reload.comments_count
+
+    c.restore
+    assert_equal 1, p.reload.comments_count
+  end
+
   private
   def get_featureful_model
     FeaturefulModel.new(:name => 'not empty')
@@ -445,10 +459,20 @@ end
 
 class ParentModel < ActiveRecord::Base
   has_many :paranoid_models
+  has_many :paranoid_model_with_counter_cache
 end
 
 class ParanoidModel < ActiveRecord::Base
   belongs_to :parent_model
+  acts_as_paranoid
+end
+
+class Post < ActiveRecord::Base
+  has_many :comments
+end
+
+class Comment < ActiveRecord::Base
+  belongs_to :post, :counter_cache => true
   acts_as_paranoid
 end
 
